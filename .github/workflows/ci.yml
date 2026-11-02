@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Type-check
+        run: pnpm typecheck
+      - name: Unit tests (the graph runs on the mock model)
+        run: pnpm coverage
+      - name: Build
+        run: pnpm build
+      - name: Smoke-test the streaming API on the mock model
+        env:
+          BIDWRIGHT_MOCK: "1"
+          BIDWRIGHT_MOCK_DELAY: "0"
+        run: |
+          pnpm start --port 3300 &
+          for i in $(seq 1 30); do curl -sf localhost:3300/api/agent > /dev/null && break; sleep 1; done
+          pnpm smoke http://localhost:3300
