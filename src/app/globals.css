@@ -72,27 +72,30 @@
   --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
 }
 
-html {
-  color-scheme: light;
-}
-html.dark {
-  color-scheme: dark;
-}
+/* In the base layer so utilities (outline-none on text fields, etc.) can override them. */
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
 
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-feature-settings: "ss01", "cv11";
-}
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-feature-settings: "ss01", "cv11";
+  }
 
-::selection {
-  background: var(--highlight);
-  color: #14161d;
-}
+  ::selection {
+    background: var(--highlight);
+    color: #14161d;
+  }
 
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
 }
 
 /* Highlighter stroke: a slightly rotated, ragged band behind text. */
