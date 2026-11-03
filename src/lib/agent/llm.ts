@@ -35,9 +35,14 @@ export function modelFor(tier: Tier): string {
   return env?.trim() || DEFAULT_MODELS[tier];
 }
 
-/** Writer first, then the fast model: a busy model should slow a run down, not fail it. */
+/** Last resort with its own free-tier quota; fast even when the newer models are overloaded. */
+export const FALLBACK_MODEL = "gemini-3.1-flash-lite";
+/** A stalled call moves on to the next model instead of hanging the run. */
+const CALL_TIMEOUT_MS = 30_000;
+
+/** Writer first, then the fast model, then the fallback: a busy model should slow a run down, not fail it. */
 export function modelChain(tier: Tier): string[] {
-  return [...new Set([modelFor(tier), modelFor("fast")])];
+  return [...new Set([modelFor(tier), modelFor("fast"), FALLBACK_MODEL])];
 }
 
 let client: GoogleGenAI | null = null;
@@ -70,7 +75,7 @@ export async function generate<T extends z.ZodType>(opts: GenerateOptions<T>): P
             maxOutputTokens: 4096,
             responseMimeType: "application/json",
             responseJsonSchema: z.toJSONSchema(opts.schema, { io: "input" }),
-            abortSignal: opts.signal,
+            abortSignal: AbortSignal.any([AbortSignal.timeout(CALL_TIMEOUT_MS), ...(opts.signal ? [opts.signal] : [])]),
           },
         });
         const text = res.text ?? "";
@@ -81,6 +86,8 @@ export async function generate<T extends z.ZodType>(opts: GenerateOptions<T>): P
         lastError = err;
         // Malformed JSON gets one more try on the same model; a busy model gets a short backoff.
         if (!retryable(err) && !(err instanceof SyntaxError || err instanceof z.ZodError)) break;
+        // Quota and timeouts won't clear in a second: go straight to the next model.
+        if (/429|RESOURCE_EXHAUSTED|aborted|timeout/i.test(String(err))) break;
         if (attempt === 0) await sleep(retryable(err) ? 1200 : 0, opts.signal);
       }
     }
